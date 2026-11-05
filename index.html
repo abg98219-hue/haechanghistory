@@ -58,8 +58,15 @@
       appId,
       userId: null,
       submissions: [],
-      mode: 'student' // 'student' | 'teacher'
+      mode: 'student', // 'student' | 'teacher'
+      teacherPasscode: 'history123' // Default passcode
     };
+
+    // Load saved teacher passcode from localStorage if exists
+    const savedPass = localStorage.getItem('teacher_passcode');
+    if (savedPass) {
+      window.appState.teacherPasscode = savedPass;
+    }
 
     // Listen to Submissions Collection (Strict Path: /artifacts/{appId}/public/data/submissions)
     function initRealtimeSubmissions() {
@@ -155,8 +162,8 @@
     <button id="btn-student-mode" onclick="switchMode('student')" class="px-4 py-1.5 rounded-full text-xs font-bold transition-all bg-amber-800 text-white shadow-xs">
       📝 학생 작성 모드
     </button>
-    <button id="btn-teacher-mode" onclick="switchMode('teacher')" class="px-4 py-1.5 rounded-full text-xs font-bold transition-all text-amber-900 hover:bg-amber-100 flex items-center gap-1">
-      <span>👑 선생님 대시보드</span>
+    <button id="btn-teacher-mode" onclick="attemptTeacherAccess()" class="px-4 py-1.5 rounded-full text-xs font-bold transition-all text-amber-900 hover:bg-amber-100 flex items-center gap-1">
+      <span>🔒 선생님 대시보드</span>
       <span id="submission-count-badge" class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-sans">0</span>
     </button>
     
@@ -168,6 +175,24 @@
       </svg>
       <span>PDF 저장</span>
     </button>
+  </div>
+
+  <!-- Teacher Auth Modal -->
+  <div id="passcode-modal" class="no-print fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center hidden">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border-2 border-amber-300 text-center animate-fade-in">
+      <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">🔒</div>
+      <h3 class="font-title text-lg text-stone-900 mb-1">선생님 전용 인증</h3>
+      <p class="text-xs text-stone-500 mb-4">대시보드에 접근하려면 교사 비밀번호를 입력하세요.<br><span class="text-amber-800 font-semibold">(초기 비밀번호: history123)</span></p>
+      
+      <form onsubmit="verifyPasscode(event)" class="space-y-3">
+        <input type="password" id="input-passcode" placeholder="비밀번호 입력" required class="w-full text-center text-sm p-2.5 border-2 border-amber-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold">
+        <p id="passcode-error" class="text-xs text-red-500 font-bold hidden">❌ 비밀번호가 올바르지 않습니다.</p>
+        <div class="flex gap-2">
+          <button type="button" onclick="closePasscodeModal()" class="w-1/2 py-2 text-xs font-bold bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition-all">취소</button>
+          <button type="submit" class="w-1/2 py-2 text-xs font-bold bg-amber-800 hover:bg-amber-900 text-white rounded-xl shadow-md transition-all">확인</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Custom Notification Toast -->
@@ -372,8 +397,11 @@
           </h1>
         </div>
         
-        <!-- Filter Bar -->
+        <!-- Action Buttons & Filter Bar -->
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <button onclick="changePasscodePrompt()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold px-3 py-2 rounded-xl transition-all flex items-center gap-1 border border-amber-300">
+            🔑 비밀번호 변경
+          </button>
           <select id="filter-king" onchange="window.renderTeacherDashboard()" class="text-xs border border-amber-300 rounded-xl p-2 bg-amber-50/50 font-bold text-stone-800 focus:outline-none">
             <option value="ALL">전체 왕 보기</option>
           </select>
@@ -414,6 +442,39 @@
 
   <!-- JavaScript App Logic -->
   <script>
+    // Mode & Auth Security Logic
+    function attemptTeacherAccess() {
+      if (window.appState.mode === 'teacher') return;
+      document.getElementById('passcode-modal').classList.remove('hidden');
+      document.getElementById('input-passcode').value = '';
+      document.getElementById('passcode-error').classList.add('hidden');
+      setTimeout(() => document.getElementById('input-passcode').focus(), 100);
+    }
+
+    function closePasscodeModal() {
+      document.getElementById('passcode-modal').classList.add('hidden');
+    }
+
+    function verifyPasscode(e) {
+      e.preventDefault();
+      const inputPass = document.getElementById('input-passcode').value;
+      if (inputPass === window.appState.teacherPasscode) {
+        closePasscodeModal();
+        switchMode('teacher');
+      } else {
+        document.getElementById('passcode-error').classList.remove('hidden');
+      }
+    }
+
+    function changePasscodePrompt() {
+      const newPass = prompt("새로운 선생님 전용 비밀번호를 입력하세요:", window.appState.teacherPasscode);
+      if (newPass && newPass.trim().length > 0) {
+        window.appState.teacherPasscode = newPass.trim();
+        localStorage.setItem('teacher_passcode', newPass.trim());
+        showToast("🔑 비밀번호가 새로 변경되었습니다!");
+      }
+    }
+
     // Mode Switching
     function switchMode(mode) {
       window.appState.mode = mode;
